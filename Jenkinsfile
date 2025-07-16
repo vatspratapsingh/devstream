@@ -4,7 +4,7 @@ pipeline {
   stages {
     stage('Clone Repo') {
       steps {
-        git 'https://github.com/vatspratapsingh/devstream.git'
+        git url: 'https://github.com/vatspratapsingh/devstream.git', branch: 'main'
       }
     }
 
