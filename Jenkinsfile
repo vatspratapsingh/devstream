@@ -17,10 +17,15 @@ pipeline {
 
     stage('Run Container') {
       steps {
-        // Remove any previously running container
-        sh 'docker rm -f $(docker ps -aq --filter ancestor=devstream-backend) || true'
+        script {
+          // Clean up old container *only if* it exists
+          def oldContainers = sh(script: "docker ps -aq --filter ancestor=devstream-backend", returnStdout: true).trim()
+          if (oldContainers) {
+            sh "docker rm -f ${oldContainers}"
+          }
+        }
 
-        // Run the new one
+        // Now run the new one
         sh 'docker run -d -p 3000:3000 devstream-backend'
       }
     }
