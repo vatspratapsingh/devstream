@@ -18,14 +18,17 @@ pipeline {
     stage('Run Container') {
       steps {
         script {
-          // Clean up old container *only if* it exists
-          def oldContainers = sh(script: "docker ps -aq --filter ancestor=devstream-backend", returnStdout: true).trim()
-          if (oldContainers) {
-            sh "docker rm -f ${oldContainers}"
+          // Stop any container using port 3000
+          def portInUse = sh(
+            script: "docker ps --filter 'publish=3000' -q",
+            returnStdout: true
+          ).trim()
+          if (portInUse) {
+            sh "docker rm -f ${portInUse}"
           }
         }
 
-        // Now run the new one
+        // Run the new container
         sh 'docker run -d -p 3000:3000 devstream-backend'
       }
     }
