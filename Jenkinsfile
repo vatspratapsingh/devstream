@@ -10,13 +10,14 @@ pipeline {
 
     stage('Run Tests') {
       steps {
-        sh 'echo "✅ Tests passed (placeholder)"'
+        // Run npm test in the built image
+        sh 'docker run --rm devstream-backend npm test'
       }
     }
 
     stage('Run Container') {
       steps {
-        // 👇 Add this: stop old containers based on this image
+        // Remove any previously running container
         sh 'docker rm -f $(docker ps -aq --filter ancestor=devstream-backend) || true'
 
         // Run the new one
