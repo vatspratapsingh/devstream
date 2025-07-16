@@ -2,11 +2,6 @@ pipeline {
   agent any
 
   stages {
-    stage('Clone Repo') {
-      steps {
-        git url: 'https://github.com/vatspratapsingh/devstream.git', branch: 'main'
-      }
-    }
 
     stage('Build Docker Image') {
       steps {
