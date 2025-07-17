@@ -18,9 +18,8 @@ pipeline {
     stage('Run Container') {
       steps {
         script {
-          // Stop any container using port 3000
           def portInUse = sh(
-            script: "docker ps --filter 'publish=3000' -q",
+            script: "docker ps --format '{{.ID}} {{.Ports}}' | grep '0.0.0.0:3000' | awk '{print \$1}'",
             returnStdout: true
           ).trim()
           if (portInUse) {
@@ -29,7 +28,7 @@ pipeline {
         }
 
         // Run the new container
-        sh 'docker run -d -p 3000:3000 devstream-backend'
+        sh 'docker run -d -p 3100:3000 devstream-backend'     
       }
     }
   }

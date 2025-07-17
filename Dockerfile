@@ -1,18 +1,9 @@
-# Use the official Node.js image
-FROM node:18
+FROM jenkins/jenkins:lts
 
-# Set working directory
-WORKDIR /app
+USER root
 
-# Install dependencies
-COPY package*.json ./
-RUN npm install
+RUN apt-get update && \
+    apt-get install -y docker.io && \
+    usermod -aG docker jenkins
 
-# Copy all source code
-COPY . .
-
-# Expose the app port
-EXPOSE 3000
-
-# Run the app
-CMD ["node", "server.js"]
+USER jenkins
