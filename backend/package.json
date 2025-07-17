@@ -1,11 +1,11 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Express backend for Devstream project",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "jest"
+    "test": "jest --detectOpenHandles --forceExit --coverage"
   },
   "keywords": [],
   "author": "",
