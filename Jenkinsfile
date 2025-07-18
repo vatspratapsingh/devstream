@@ -24,51 +24,41 @@ pipeline {
       }
     }
 
-    stage('Update GitHub Webhook') {
-      steps {
-        withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
-          script {
-            // ⏳ Retry until ngrok tunnel is ready
-            def ngrokUrl = ''
-            def attempts = 0
-            while (!ngrokUrl && attempts < 10) {
-              def ngrokRaw = sh(
-                script: "curl -s http://127.0.0.1:4040/api/tunnels || echo ''",
-                returnStdout: true
-              ).trim()
+  stage('Update GitHub Webhook') {
+    steps {
+      withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+        script {
+          def ngrokUrl = ""
+          def attempts = 0
+          while (attempts < 15) {
+            def response = sh(script: "curl -s http://127.0.0.1:4040/api/tunnels", returnStdout: true).trim()
+            echo "🌐 NGROK Raw Response (attempt ${attempts + 1}): ${response}"
 
-              echo "🌐 NGROK Raw Response (attempt ${attempts + 1}): ${ngrokRaw}"
-
-              if (ngrokRaw && ngrokRaw.contains("public_url")) {
-                ngrokUrl = sh(
-                  script: "echo '${ngrokRaw}' | jq -r '.tunnels[0].public_url'",
-                  returnStdout: true
-                ).trim()
-              }
-
-              if (!ngrokUrl) {
-                sleep 2
-                attempts++
-              }
+            if (response && response.contains("public_url")) {
+              ngrokUrl = sh(script: "echo '${response}' | jq -r '.tunnels[0].public_url'", returnStdout: true).trim()
+              break
             }
 
-            if (!ngrokUrl) {
-              error "❌ ngrok URL could not be retrieved after ${attempts} attempts"
-            }
-
-            echo "🔄 Updating GitHub webhook with ngrok URL: ${ngrokUrl}/github-webhook/"
-
-            // PATCH the GitHub webhook
-            sh 'curl -s -X PATCH ' +
-              '-H "Authorization: token ' + GITHUB_TOKEN + '" ' +
-              '-H "Accept: application/vnd.github.v3+json" ' +
-              'https://api.github.com/repos/' + GITHUB_REPO + '/hooks/' + WEBHOOK_ID + ' ' +
-              '-d ' +
-              "'{\"config\": {\"url\": \"" + ngrokUrl + "/github-webhook/\", \"content_type\": \"json\"}}'"
+            attempts++
+            sleep 2
           }
+
+          if (!ngrokUrl) {
+            error("❌ ngrok URL could not be retrieved after ${attempts} attempts")
+          }
+
+          echo "🔄 Updating GitHub webhook with ngrok URL: ${ngrokUrl}/github-webhook/"
+
+          sh 'curl -s -X PATCH ' +
+            '-H "Authorization: token ' + GITHUB_TOKEN + '" ' +
+            '-H "Accept: application/vnd.github.v3+json" ' +
+            'https://api.github.com/repos/' + GITHUB_REPO + '/hooks/' + WEBHOOK_ID + ' ' +
+            '-d ' +
+            "'{\"config\": {\"url\": \"" + ngrokUrl + "/github-webhook/\", \"content_type\": \"json\"}}'"
         }
       }
     }
+  }
 
     stage('Build Docker Image') {
       steps {
