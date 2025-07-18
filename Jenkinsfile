@@ -25,35 +25,43 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
           script {
-            // Fetch ngrok tunnels and log full response
-            def ngrokInfo = sh(script: 'curl -s http://127.0.0.1:4040/api/tunnels', returnStdout: true).trim()
-            echo "🌐 NGROK Raw Response: ${ngrokInfo}"
+            // ⏳ Retry until ngrok tunnel is ready
+            def ngrokUrl = ''
+            def attempts = 0
+            while (!ngrokUrl && attempts < 10) {
+              def ngrokRaw = sh(
+                script: "curl -s http://127.0.0.1:4040/api/tunnels || echo ''",
+                returnStdout: true
+              ).trim()
 
-            // Extract HTTPS tunnel URL
-            def ngrokUrl = sh(
-              script: "echo '${ngrokInfo}' | jq -r '.tunnels[] | select(.proto==\"https\") | .public_url'",
-              returnStdout: true
-            ).trim()
+              echo "🌐 NGROK Raw Response (attempt ${attempts + 1}): ${ngrokRaw}"
 
-            if (!ngrokUrl || !ngrokUrl.startsWith("http")) {
-              error "❌ Failed to extract valid ngrok public URL. Got: '${ngrokUrl}'"
+              if (ngrokRaw && ngrokRaw.contains("public_url")) {
+                ngrokUrl = sh(
+                  script: "echo '${ngrokRaw}' | jq -r '.tunnels[0].public_url'",
+                  returnStdout: true
+                ).trim()
+              }
+
+              if (!ngrokUrl) {
+                sleep 2
+                attempts++
+              }
+            }
+
+            if (!ngrokUrl) {
+              error "❌ ngrok URL could not be retrieved after ${attempts} attempts"
             }
 
             echo "🔄 Updating GitHub webhook with ngrok URL: ${ngrokUrl}/github-webhook/"
 
-            // Update GitHub webhook with new URL
-            sh """
-              curl -s -X PATCH \\
-              -H "Authorization: token ${GITHUB_TOKEN}" \\
-              -H "Accept: application/vnd.github.v3+json" \\
-              https://api.github.com/repos/${GITHUB_REPO}/hooks/${WEBHOOK_ID} \\
-              -d '{
-                "config": {
-                  "url": "${ngrokUrl}/github-webhook/",
-                  "content_type": "json"
-                }
-              }'
-            """
+            // PATCH the GitHub webhook
+            sh 'curl -s -X PATCH ' +
+              '-H "Authorization: token ' + GITHUB_TOKEN + '" ' +
+              '-H "Accept: application/vnd.github.v3+json" ' +
+              'https://api.github.com/repos/' + GITHUB_REPO + '/hooks/' + WEBHOOK_ID + ' ' +
+              '-d ' +
+              "'{\"config\": {\"url\": \"" + ngrokUrl + "/github-webhook/\", \"content_type\": \"json\"}}'"
           }
         }
       }
