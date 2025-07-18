@@ -19,7 +19,7 @@ pipeline {
           }
 
           // Start ngrok in background
-          sh "nohup ngrok http http://localhost:${env.NGROK_PORT} > ngrok.log 2>&1 &"
+          sh "nohup ngrok start jenkins > ngrok.log 2>&1 &"          
           sleep 5 // Wait for ngrok to initialize
 
           // Print ngrok logs for debugging
