@@ -14,6 +14,9 @@ pipeline {
           // Kill previous ngrok instance if any
           sh 'pkill ngrok || true'
 
+          withCredentials([string(credentialsId: 'ngrok-token', variable: 'NGROK_TOKEN')]) {
+            sh 'ngrok config add-authtoken $NGROK_TOKEN'
+          }
           // Start ngrok in background
           sh "nohup ngrok http ${env.NGROK_PORT} > ngrok.log 2>&1 &"
           sleep 5 // Wait for ngrok to initialize
