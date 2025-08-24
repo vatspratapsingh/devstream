@@ -2,184 +2,155 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
+// Import middleware and utilities
+const { 
+  validateCreateNote, 
+  validateUpdateNote, 
+  validateNoteId, 
+  validateQueryParams,
+  handleValidationErrors 
+} = require('../middleware/validation');
+
+const { asyncHandler } = require('../middleware/errorHandler');
+const { 
+  successResponse, 
+  createdResponse, 
+  notFoundResponse, 
+  paginatedResponse 
+} = require('../utils/response');
+const { paginate, search, sort } = require('../utils/helpers');
+const logger = require('../utils/logger');
+
 // In-memory storage (in production, use a database)
 let notes = [
   {
     id: "demo-1",
     title: "Welcome to DevStream",
     content: "This is your first note. Create, read, update, and delete notes using this API.",
+    tags: ["welcome", "getting-started"],
+    priority: "medium",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
 ];
 
-// Validation middleware
-const validateNote = (req, res, next) => {
-  const { title, content } = req.body;
-  
-  if (!title || title.trim().length === 0) {
-    return res.status(400).json({
-      error: 'Validation Error',
-      message: 'Title is required and cannot be empty'
-    });
-  }
-  
-  if (!content || content.trim().length === 0) {
-    return res.status(400).json({
-      error: 'Validation Error',
-      message: 'Content is required and cannot be empty'
-    });
-  }
-  
-  next();
-};
-
-// GET all notes
-router.get('/', (req, res) => {
-  try {
-    const { page = 1, limit = 10, search } = req.query;
+// GET all notes with pagination, search, and sorting
+router.get('/', 
+  validateQueryParams,
+  handleValidationErrors,
+  asyncHandler(async (req, res) => {
+    const { page = 1, limit = 10, search: searchTerm, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    
     let filteredNotes = [...notes];
     
-    // Search functionality
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredNotes = filteredNotes.filter(note => 
-        note.title.toLowerCase().includes(searchLower) ||
-        note.content.toLowerCase().includes(searchLower)
-      );
+    // Apply search if provided
+    if (searchTerm) {
+      filteredNotes = search(filteredNotes, searchTerm, ['title', 'content', 'tags']);
     }
     
-    // Pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const paginatedNotes = filteredNotes.slice(startIndex, endIndex);
+    // Apply sorting
+    filteredNotes = sort(filteredNotes, sortBy, sortOrder);
     
-    res.json({
-      notes: paginatedNotes,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(filteredNotes.length / limit),
-        totalNotes: filteredNotes.length,
-        hasNext: endIndex < filteredNotes.length,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to retrieve notes'
-    });
-  }
-});
+    // Apply pagination
+    const result = paginate(filteredNotes, page, limit);
+    
+    logger.info(`Retrieved ${result.data.length} notes from ${filteredNotes.length} total`);
+    
+    return paginatedResponse(res, result.data, page, limit, filteredNotes.length, 'Notes retrieved successfully');
+  })
+);
 
 // GET note by ID
-router.get('/:id', (req, res) => {
-  try {
+router.get('/:id', 
+  validateNoteId,
+  handleValidationErrors,
+  asyncHandler(async (req, res) => {
     const noteId = req.params.id;
     const note = notes.find(n => n.id === noteId);
     
     if (!note) {
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'Note not found'
-      });
+      logger.warn(`Note with ID ${noteId} not found`);
+      return notFoundResponse(res, 'Note not found');
     }
     
-    res.json(note);
-  } catch (error) {
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to retrieve note'
-    });
-  }
-});
+    logger.info(`Retrieved note with ID: ${noteId}`);
+    return successResponse(res, note, 'Note retrieved successfully');
+  })
+);
 
 // POST create new note
-router.post('/', validateNote, (req, res) => {
-  try {
-    const { title, content } = req.body;
+router.post('/', 
+  validateCreateNote,
+  handleValidationErrors,
+  asyncHandler(async (req, res) => {
+    const { title, content, tags = [], priority = 'medium' } = req.body;
     const now = new Date().toISOString();
     
     const newNote = {
       id: uuidv4(),
       title: title.trim(),
       content: content.trim(),
+      tags: Array.isArray(tags) ? tags : [],
+      priority,
       createdAt: now,
       updatedAt: now
     };
     
     notes.push(newNote);
     
-    res.status(201).json({
-      message: 'Note created successfully',
-      note: newNote
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to create note'
-    });
-  }
-});
+    logger.info(`Created new note with ID: ${newNote.id}`);
+    return createdResponse(res, newNote, 'Note created successfully');
+  })
+);
 
 // PUT update note
-router.put('/:id', validateNote, (req, res) => {
-  try {
+router.put('/:id', 
+  validateUpdateNote,
+  handleValidationErrors,
+  asyncHandler(async (req, res) => {
     const noteId = req.params.id;
-    const { title, content } = req.body;
+    const { title, content, tags, priority } = req.body;
     const noteIndex = notes.findIndex(n => n.id === noteId);
     
     if (noteIndex === -1) {
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'Note not found'
-      });
+      logger.warn(`Note with ID ${noteId} not found for update`);
+      return notFoundResponse(res, 'Note not found');
     }
     
-    notes[noteIndex] = {
+    const updatedNote = {
       ...notes[noteIndex],
-      title: title.trim(),
-      content: content.trim(),
+      ...(title && { title: title.trim() }),
+      ...(content && { content: content.trim() }),
+      ...(tags && { tags: Array.isArray(tags) ? tags : notes[noteIndex].tags }),
+      ...(priority && { priority }),
       updatedAt: new Date().toISOString()
     };
     
-    res.json({
-      message: 'Note updated successfully',
-      note: notes[noteIndex]
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to update note'
-    });
-  }
-});
+    notes[noteIndex] = updatedNote;
+    
+    logger.info(`Updated note with ID: ${noteId}`);
+    return successResponse(res, updatedNote, 'Note updated successfully');
+  })
+);
 
 // DELETE note
-router.delete('/:id', (req, res) => {
-  try {
+router.delete('/:id', 
+  validateNoteId,
+  handleValidationErrors,
+  asyncHandler(async (req, res) => {
     const noteId = req.params.id;
     const noteIndex = notes.findIndex(n => n.id === noteId);
     
     if (noteIndex === -1) {
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'Note not found'
-      });
+      logger.warn(`Note with ID ${noteId} not found for deletion`);
+      return notFoundResponse(res, 'Note not found');
     }
     
     const deletedNote = notes.splice(noteIndex, 1)[0];
     
-    res.json({
-      message: 'Note deleted successfully',
-      note: deletedNote
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to delete note'
-    });
-  }
-});
+    logger.info(`Deleted note with ID: ${noteId}`);
+    return successResponse(res, deletedNote, 'Note deleted successfully');
+  })
+);
 
 module.exports = router;

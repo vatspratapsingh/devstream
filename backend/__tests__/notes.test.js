@@ -10,12 +10,13 @@ describe('Notes API', () => {
         .get('/api/notes')
         .expect(200);
 
-      expect(res.body).toHaveProperty('notes');
+      expect(res.body).toHaveProperty('success', true);
+      expect(res.body).toHaveProperty('data');
       expect(res.body).toHaveProperty('pagination');
-      expect(Array.isArray(res.body.notes)).toBe(true);
-      expect(res.body.pagination).toHaveProperty('currentPage');
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.pagination).toHaveProperty('page');
       expect(res.body.pagination).toHaveProperty('totalPages');
-      expect(res.body.pagination).toHaveProperty('totalNotes');
+      expect(res.body.pagination).toHaveProperty('total');
     });
 
     it('should support pagination parameters', async () => {
@@ -23,7 +24,7 @@ describe('Notes API', () => {
         .get('/api/notes?page=1&limit=5')
         .expect(200);
 
-      expect(res.body.pagination.currentPage).toBe(1);
+      expect(res.body.pagination.page).toBe(1);
       expect(res.body.pagination.totalPages).toBeGreaterThan(0);
     });
 
@@ -32,8 +33,8 @@ describe('Notes API', () => {
         .get('/api/notes?search=DevStream')
         .expect(200);
 
-      expect(res.body.notes.length).toBeGreaterThan(0);
-      expect(res.body.notes[0].title).toContain('DevStream');
+      expect(res.body.data.length).toBeGreaterThan(0);
+      expect(res.body.data[0].title).toContain('DevStream');
     });
   });
 
@@ -43,11 +44,12 @@ describe('Notes API', () => {
         .get('/api/notes/demo-1')
         .expect(200);
 
-      expect(res.body).toHaveProperty('id', 'demo-1');
-      expect(res.body).toHaveProperty('title');
-      expect(res.body).toHaveProperty('content');
-      expect(res.body).toHaveProperty('createdAt');
-      expect(res.body).toHaveProperty('updatedAt');
+      expect(res.body).toHaveProperty('success', true);
+      expect(res.body.data).toHaveProperty('id', 'demo-1');
+      expect(res.body.data).toHaveProperty('title');
+      expect(res.body.data).toHaveProperty('content');
+      expect(res.body.data).toHaveProperty('createdAt');
+      expect(res.body.data).toHaveProperty('updatedAt');
     });
 
     it('should return 404 for non-existent note', async () => {
@@ -55,7 +57,7 @@ describe('Notes API', () => {
         .get('/api/notes/non-existent-id')
         .expect(404);
 
-      expect(res.body).toHaveProperty('error', 'Not Found');
+      expect(res.body).toHaveProperty('success', false);
       expect(res.body).toHaveProperty('message', 'Note not found');
     });
   });
@@ -72,15 +74,16 @@ describe('Notes API', () => {
         .send(newNote)
         .expect(201);
 
+      expect(res.body).toHaveProperty('success', true);
       expect(res.body).toHaveProperty('message', 'Note created successfully');
-      expect(res.body).toHaveProperty('note');
-      expect(res.body.note).toHaveProperty('id');
-      expect(res.body.note.title).toBe(newNote.title);
-      expect(res.body.note.content).toBe(newNote.content);
-      expect(res.body.note).toHaveProperty('createdAt');
-      expect(res.body.note).toHaveProperty('updatedAt');
+      expect(res.body).toHaveProperty('data');
+      expect(res.body.data).toHaveProperty('id');
+      expect(res.body.data.title).toBe(newNote.title);
+      expect(res.body.data.content).toBe(newNote.content);
+      expect(res.body.data).toHaveProperty('createdAt');
+      expect(res.body.data).toHaveProperty('updatedAt');
 
-      testNoteId = res.body.note.id;
+      testNoteId = res.body.data.id;
     });
 
     it('should return 400 for missing title', async () => {
@@ -93,8 +96,9 @@ describe('Notes API', () => {
         .send(invalidNote)
         .expect(400);
 
-      expect(res.body).toHaveProperty('error', 'Validation Error');
-      expect(res.body).toHaveProperty('message', 'Title is required and cannot be empty');
+      expect(res.body).toHaveProperty('success', false);
+      expect(res.body).toHaveProperty('message', 'Validation failed');
+      expect(res.body).toHaveProperty('errors');
     });
 
     it('should return 400 for missing content', async () => {
@@ -107,8 +111,9 @@ describe('Notes API', () => {
         .send(invalidNote)
         .expect(400);
 
-      expect(res.body).toHaveProperty('error', 'Validation Error');
-      expect(res.body).toHaveProperty('message', 'Content is required and cannot be empty');
+      expect(res.body).toHaveProperty('success', false);
+      expect(res.body).toHaveProperty('message', 'Validation failed');
+      expect(res.body).toHaveProperty('errors');
     });
 
     it('should return 400 for empty title', async () => {
@@ -122,8 +127,9 @@ describe('Notes API', () => {
         .send(invalidNote)
         .expect(400);
 
-      expect(res.body).toHaveProperty('error', 'Validation Error');
-      expect(res.body).toHaveProperty('message', 'Title is required and cannot be empty');
+      expect(res.body).toHaveProperty('success', false);
+      expect(res.body).toHaveProperty('message', 'Validation failed');
+      expect(res.body).toHaveProperty('errors');
     });
   });
 
@@ -139,11 +145,12 @@ describe('Notes API', () => {
         .send(updateData)
         .expect(200);
 
+      expect(res.body).toHaveProperty('success', true);
       expect(res.body).toHaveProperty('message', 'Note updated successfully');
-      expect(res.body).toHaveProperty('note');
-      expect(res.body.note.title).toBe(updateData.title);
-      expect(res.body.note.content).toBe(updateData.content);
-      expect(res.body.note.updatedAt).not.toBe(res.body.note.createdAt);
+      expect(res.body).toHaveProperty('data');
+      expect(res.body.data.title).toBe(updateData.title);
+      expect(res.body.data.content).toBe(updateData.content);
+      expect(res.body.data.updatedAt).not.toBe(res.body.data.createdAt);
     });
 
     it('should return 404 for non-existent note', async () => {
@@ -157,7 +164,7 @@ describe('Notes API', () => {
         .send(updateData)
         .expect(404);
 
-      expect(res.body).toHaveProperty('error', 'Not Found');
+      expect(res.body).toHaveProperty('success', false);
       expect(res.body).toHaveProperty('message', 'Note not found');
     });
 
@@ -172,7 +179,8 @@ describe('Notes API', () => {
         .send(invalidData)
         .expect(400);
 
-      expect(res.body).toHaveProperty('error', 'Validation Error');
+      expect(res.body).toHaveProperty('success', false);
+      expect(res.body).toHaveProperty('message', 'Validation failed');
     });
   });
 
@@ -182,9 +190,10 @@ describe('Notes API', () => {
         .delete(`/api/notes/${testNoteId}`)
         .expect(200);
 
+      expect(res.body).toHaveProperty('success', true);
       expect(res.body).toHaveProperty('message', 'Note deleted successfully');
-      expect(res.body).toHaveProperty('note');
-      expect(res.body.note.id).toBe(testNoteId);
+      expect(res.body).toHaveProperty('data');
+      expect(res.body.data.id).toBe(testNoteId);
     });
 
     it('should return 404 for non-existent note', async () => {
@@ -192,7 +201,7 @@ describe('Notes API', () => {
         .delete('/api/notes/non-existent-id')
         .expect(404);
 
-      expect(res.body).toHaveProperty('error', 'Not Found');
+      expect(res.body).toHaveProperty('success', false);
       expect(res.body).toHaveProperty('message', 'Note not found');
     });
 
@@ -201,7 +210,8 @@ describe('Notes API', () => {
         .get(`/api/notes/${testNoteId}`)
         .expect(404);
 
-      expect(res.body).toHaveProperty('error', 'Not Found');
+      expect(res.body).toHaveProperty('success', false);
+      expect(res.body).toHaveProperty('message', 'Note not found');
     });
   });
 });
@@ -212,11 +222,12 @@ describe('Health Check', () => {
       .get('/health')
       .expect(200);
 
-    expect(res.body).toHaveProperty('status', 'OK');
-    expect(res.body).toHaveProperty('timestamp');
-    expect(res.body).toHaveProperty('uptime');
-    expect(res.body).toHaveProperty('environment');
-    expect(res.body).toHaveProperty('version');
+    expect(res.body).toHaveProperty('success', true);
+    expect(res.body.data).toHaveProperty('status', 'OK');
+    expect(res.body.data).toHaveProperty('timestamp');
+    expect(res.body.data).toHaveProperty('uptime');
+    expect(res.body.data).toHaveProperty('environment');
+    expect(res.body.data).toHaveProperty('version');
   });
 });
 
@@ -226,8 +237,9 @@ describe('Root Endpoint', () => {
       .get('/')
       .expect(200);
 
-    expect(res.body).toHaveProperty('message', 'Welcome to DevStream API');
-    expect(res.body).toHaveProperty('version', '1.0.0');
-    expect(res.body).toHaveProperty('endpoints');
+    expect(res.body).toHaveProperty('success', true);
+    expect(res.body.data).toHaveProperty('message', 'Welcome to DevStream API');
+    expect(res.body.data).toHaveProperty('version', '1.0.0');
+    expect(res.body.data).toHaveProperty('endpoints');
   });
 });
