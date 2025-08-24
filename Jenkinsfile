@@ -71,11 +71,12 @@ pipeline {
           echo '🧪 Running tests...'
           
           dir('backend') {
-            // Run tests in Docker container
+            // Build test image and run tests
             sh '''
+              docker build --target test -t ${DOCKER_IMAGE}:test .
               docker run --rm \
                 --name test-container \
-                ${DOCKER_IMAGE}:latest \
+                ${DOCKER_IMAGE}:test \
                 npm test
             '''
           }
