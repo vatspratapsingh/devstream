@@ -2,15 +2,12 @@ pipeline {
   agent any
 
   environment {
-    GITHUB_REPO = 'vatspratapsingh/devstream'
-    WEBHOOK_ID = '558587274'
-    NGROK_PORT = '8080'
     DOCKER_IMAGE = 'devstream-backend'
     CONTAINER_NAME = 'devstream-backend-container'
     HOST_PORT = '3100'
     CONTAINER_PORT = '3000'
-    // Add Homebrew PATH for ngrok
-    PATH = "/opt/homebrew/bin:/opt/homebrew/sbin:${env.PATH}"
+    // Add all possible paths for tools
+    PATH = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
   }
 
   stages {
@@ -19,120 +16,36 @@ pipeline {
         script {
           echo '🔧 Setting up environment...'
           
-          // Clean up any existing containers
-          sh '''
-            docker ps -a --filter "name=${CONTAINER_NAME}" --format "{{.ID}}" | xargs -r docker rm -f
-            docker images --filter "dangling=true" --format "{{.ID}}" | xargs -r docker rmi
-          '''
-        }
-      }
-    }
-
-    stage('Start ngrok Tunnel') {
-      steps {
-        script {
-          echo '🌐 Starting ngrok tunnel...'
-          
-          // Check if ngrok is available
-          def ngrokPath = sh(
-            script: "which ngrok || echo 'ngrok not found'",
+          // Check if Docker is available
+          def dockerPath = sh(
+            script: "which docker || echo 'docker not found'",
             returnStdout: true
           ).trim()
           
-          if (ngrokPath == 'ngrok not found') {
-            echo '⚠️ ngrok not found in PATH, trying to install...'
+          echo "Docker path: ${dockerPath}"
+          
+          if (dockerPath == 'docker not found') {
+            echo '⚠️ Docker not found in PATH, trying to find it...'
             sh '''
-              # Try to install ngrok if not available
-              if ! command -v ngrok &> /dev/null; then
-                echo "Installing ngrok..."
-                curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-                echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-                sudo apt update && sudo apt install ngrok
+              # Try to find Docker
+              if [ -f "/Applications/Docker.app/Contents/Resources/bin/docker" ]; then
+                export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
+                echo "Found Docker in Applications"
+              elif [ -f "/usr/local/bin/docker" ]; then
+                export PATH="/usr/local/bin:$PATH"
+                echo "Found Docker in /usr/local/bin"
+              else
+                echo "Docker not found, please ensure Docker Desktop is running"
+                exit 1
               fi
             '''
           }
           
-          // Kill any existing ngrok processes
-          sh 'pkill ngrok || true'
-          
-          // Configure ngrok with authentication token
-          withCredentials([string(credentialsId: 'ngrok-token', variable: 'NGROK_TOKEN')]) {
-            sh 'ngrok config add-authtoken $NGROK_TOKEN'
-          }
-          
-          // Start ngrok in background
-          sh "nohup ngrok start jenkins > ngrok.log 2>&1 &"
-          
-          // Wait for ngrok to initialize
-          sleep 10
-          
-          // Display ngrok logs for debugging
-          sh 'cat ngrok.log || echo "ngrok log not found"'
-        }
-      }
-    }
-
-    stage('Update GitHub Webhook') {
-      steps {
-        script {
-          echo '🔗 Updating GitHub webhook...'
-          
-          withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
-            def ngrokUrl = ""
-            def attempts = 0
-            def maxAttempts = 20
-            
-            while (attempts < maxAttempts) {
-              try {
-                def response = sh(
-                  script: "curl -s http://127.0.0.1:4040/api/tunnels",
-                  returnStdout: true
-                ).trim()
-                
-                echo "🌐 NGROK Response (attempt ${attempts + 1}): ${response}"
-                
-                if (response && response.contains("public_url")) {
-                  ngrokUrl = sh(
-                    script: "echo '${response}' | jq -r '.tunnels[0].public_url'",
-                    returnStdout: true
-                  ).trim()
-                  
-                  if (ngrokUrl && ngrokUrl != "null") {
-                    echo "✅ ngrok URL retrieved: ${ngrokUrl}"
-                    break
-                  }
-                }
-                
-                attempts++
-                sleep 3
-              } catch (Exception e) {
-                echo "⚠️ Attempt ${attempts + 1} failed: ${e.getMessage()}"
-                attempts++
-                sleep 3
-              }
-            }
-            
-            if (!ngrokUrl || ngrokUrl == "null") {
-              echo "⚠️ Could not retrieve ngrok URL, continuing without webhook update"
-              return
-            }
-            
-            def webhookUrl = "${ngrokUrl}/github-webhook/"
-            echo "🔄 Updating GitHub webhook with URL: ${webhookUrl}"
-            
-            def updateResponse = sh(
-              script: '''
-                curl -s -X PATCH \
-                  -H "Authorization: token ''' + GITHUB_TOKEN + '''" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  https://api.github.com/repos/''' + GITHUB_REPO + '''/hooks/''' + WEBHOOK_ID + ''' \
-                  -d '{"config": {"url": "''' + webhookUrl + '''", "content_type": "json"}}'
-              ''',
-              returnStdout: true
-            ).trim()
-            
-            echo "📡 Webhook update response: ${updateResponse}"
-          }
+          // Clean up any existing containers
+          sh '''
+            docker ps -a --filter "name=${CONTAINER_NAME}" --format "{{.ID}}" | xargs -r docker rm -f || true
+            docker images --filter "dangling=true" --format "{{.ID}}" | xargs -r docker rmi || true
+          '''
         }
       }
     }
@@ -187,7 +100,7 @@ pipeline {
           
           // Stop and remove existing container
           sh '''
-            docker ps -a --filter "name=${CONTAINER_NAME}" --format "{{.ID}}" | xargs -r docker rm -f
+            docker ps -a --filter "name=${CONTAINER_NAME}" --format "{{.ID}}" | xargs -r docker rm -f || true
           '''
           
           // Start new container
@@ -251,7 +164,7 @@ pipeline {
         
         // Clean up old images (keep last 5)
         sh '''
-          docker images ${DOCKER_IMAGE} --format "{{.ID}}" | tail -n +6 | xargs -r docker rmi
+          docker images ${DOCKER_IMAGE} --format "{{.ID}}" | tail -n +6 | xargs -r docker rmi || true
         '''
         
         // Display final status
@@ -275,14 +188,7 @@ pipeline {
         // Clean up on failure
         sh '''
           docker rm -f ${CONTAINER_NAME} || true
-          pkill ngrok || true
         '''
-      }
-    }
-    
-    cleanup {
-      script {
-        echo '🧹 Final cleanup...'
       }
     }
   }
