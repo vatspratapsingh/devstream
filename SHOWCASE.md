@@ -249,7 +249,7 @@ This project serves as an excellent example of modern software development pract
 
 ## 📞 Contact & Links
 
-- **Repository**: https://github.com/vatspratapsingh/devstream
+- **Repository**: https://github.com/vatspratapsingh/DevStream
 - **Live Demo**: Available through the CI/CD pipeline
 - **Documentation**: Comprehensive guides included
 - **Issues**: GitHub Issues for support

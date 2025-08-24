@@ -52,7 +52,7 @@ fi
 
 # GitHub repository details
 REPO_OWNER="vatspratapsingh"
-REPO_NAME="devstream"
+REPO_NAME="DevStream"
 WEBHOOK_URL="${NGROK_URL}/github-webhook/"
 
 echo -e "${YELLOW}📋 Repository: ${REPO_OWNER}/${REPO_NAME}${NC}"

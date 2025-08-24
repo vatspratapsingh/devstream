@@ -259,4 +259,4 @@ This project serves as an excellent example of modern software development pract
 
 **Last Updated**: August 24, 2025
 
-**Repository**: https://github.com/vatspratapsingh/devstream
+**Repository**: https://github.com/vatspratapsingh/DevStream

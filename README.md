@@ -76,7 +76,7 @@ devstream/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/vatspratapsingh/devstream.git
+git clone https://github.com/vatspratapsingh/DevStream.git
 cd devstream
 ```
 
@@ -122,7 +122,7 @@ open http://localhost:8080
 
 ### 3. Configure Jenkins Pipeline
 1. Create new pipeline job: `devstream-pipeline`
-2. Configure Git repository: `https://github.com/vatspratapsingh/devstream.git`
+2. Configure Git repository: `https://github.com/vatspratapsingh/DevStream.git`
 3. Set pipeline script from SCM
 4. Enable "GitHub hook trigger for GITScm polling"
 
